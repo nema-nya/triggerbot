@@ -1,0 +1,6 @@
+server/
+.vscode/
+config.py
+__pycache__
+outputs
+*.sp
