@@ -16,40 +16,45 @@ class Storage:
         self.width = width
         self.height = height
         self.frames = []
+        self.infos = []
         self.thread = threading.Thread(target=self.loop)
         self.thread.start()
 
     def loop(self):
         while True:
-            if not self.frames:
+            if not self.frames and not self.infos:
                 time.sleep(0.1)
                 continue
-            frame, info, stamp = self.frames.pop()
-            stamp = datetime.datetime.fromtimestamp(stamp).strftime(
-                "%Y-%m-%d-%H-%M-%S-%f"
-            )
-            frame_file = f"frame_{stamp}.png"
-            image_array = np.frombuffer(frame, dtype=np.uint8).reshape(
-                (
-                    self.width,
-                    self.height,
-                    4,
+            if self.frames:
+                frame, stamp = self.frames.pop()
+                stamp = datetime.datetime.fromtimestamp(stamp).strftime(
+                    "%Y-%m-%d-%H-%M-%S-%f"
                 )
-            )
-            image_array = np.stack(
-                [
-                    image_array[:, :, 2],
-                    image_array[:, :, 1],
-                    image_array[:, :, 0],
-                    image_array[:, :, 3],
-                ],
-                axis=-1,
-            )
-            image = PIL.Image.fromarray(image_array, mode="RGBA")
-            image.save(os.path.join("outputs", frame_file))
-            info_file = f"info_{stamp}.json"
-            with open(os.path.join("outputs", info_file), "w") as file:
-                file.write(json.dumps(info, indent=2))
+                frame_file = f"frame_{stamp}.png"
+                image_array = np.frombuffer(frame, dtype=np.uint8).reshape(
+                    (
+                        self.width,
+                        self.height,
+                        4,
+                    )
+                )
+                image_array = np.stack(
+                    [
+                        image_array[:, :, 2],
+                        image_array[:, :, 1],
+                        image_array[:, :, 0],
+                        image_array[:, :, 3],
+                    ],
+                    axis=-1,
+                )
+                image = PIL.Image.fromarray(image_array, mode="RGBA")
+                image.save(os.path.join("outputs", frame_file))
+            
+            if self.infos:
+                info, stamp = self.infos.pop()
+                info_file = f"info_{stamp}.json"
+                with open(os.path.join("outputs", info_file), "w") as file:
+                    file.write(json.dumps(info, indent=2))
 
 
 class ServerHandler:
@@ -136,6 +141,12 @@ class InputHandler:
 
 
 async def main():
+    capture_window = 5
+    capture_window_open = 0
+    frame_buffer = []
+
+    unconditional_capture_delay = 5.0
+    last_unconditional_capture = 0.0
 
     server_handler = ServerHandler()
     capture_handler = CaptureHandler()
@@ -151,23 +162,40 @@ async def main():
 
         tasks = {server_task, capture_task}
 
-        pending_info = None
         while True:
             done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for t in done:
                 if t.get_name() == "server":
+                    stamp = time.time()
                     tasks.add(asyncio.create_task(server_handler.read(), name="server"))
                     if input_handler.capturing:
-                        pending_info = (t.result(), time.time())
+                        info = t.result()
+                        storage.infos.append((info, stamp))
+                        if capture_window_open == 0:
+                            capture_window_open = capture_window
+                            previous_frames = frame_buffer[-capture_window:]
+                            frame_buffer = frame_buffer[:-capture_window]
+                            for timed_frame in previous_frames:
+                                storage.frames.append(timed_frame)
                 elif t.get_name() == "capture":
+                    stamp = time.time()
                     tasks.add(
                         asyncio.create_task(capture_handler.read(), name="capture")
                     )
                     if input_handler.capturing:
-                        if pending_info is not None:
-                            storage.frames.append((t.result(), *pending_info))
-                            pending_info = None
-
+                        frame = t.result()
+                        if last_unconditional_capture + unconditional_capture_delay < stamp and capture_window_open == 0:
+                            capture_window_open = capture_window
+                            previous_frames = frame_buffer[-capture_window:]
+                            frame_buffer = frame_buffer[:-capture_window]
+                            last_unconditional_capture = stamp
+                            for timed_frame in previous_frames:
+                                storage.frames.append(timed_frame)
+                        if capture_window_open > 0:
+                            storage.frames.append((frame, stamp))
+                            capture_window_open -= 1
+                        else:
+                            frame_buffer = frame_buffer[-capture_window:] + [(frame, stamp)]
         listener.join()
 
 
