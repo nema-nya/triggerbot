@@ -5,3 +5,4 @@ __pycache__
 outputs
 *.sp
 training_samples.json
+venv
