@@ -52,6 +52,9 @@ class Storage:
             
             if self.infos:
                 info, stamp = self.infos.pop()
+                stamp = datetime.datetime.fromtimestamp(stamp).strftime(
+                    "%Y-%m-%d-%H-%M-%S-%f"
+                )
                 info_file = f"info_{stamp}.json"
                 with open(os.path.join("outputs", info_file), "w") as file:
                     file.write(json.dumps(info, indent=2))
