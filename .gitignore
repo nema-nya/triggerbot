@@ -1,8 +1,8 @@
 server/
 .vscode/
-config.py
 __pycache__
 outputs
 *.sp
 training_samples.json
 venv
+*.pth

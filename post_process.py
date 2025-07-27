@@ -1,6 +1,7 @@
 import datetime
 import os
 import json
+from config import *
 
 
 def parse_stamp(text_stamp):
@@ -32,11 +33,13 @@ def main():
     frame_buffer = []
     training_samples = []
     frames_from_last_sample = 0
-    sample_window = 5
 
     for stamp, kind, file_name in events:
         if kind == "frame":
-            if len(frame_buffer) >= sample_window and frames_from_last_sample >= sample_window:
+            if (
+                len(frame_buffer) >= sample_window
+                and frames_from_last_sample >= sample_window
+            ):
                 frames_from_last_sample = 0
                 training_samples.append(
                     {
@@ -48,8 +51,8 @@ def main():
                 frame_buffer = []
             frame_buffer.append((file_name, stamp))
             frames_from_last_sample += 1
-            if len(frame_buffer) > 6 * sample_window:
-                frame_buffer = frame_buffer[-3 * sample_window:]
+            if len(frame_buffer) > 4 * sample_window:
+                frame_buffer = frame_buffer[-2 * sample_window :]
         elif kind == "info":
             if frame_buffer and frame_buffer[-1][1] + delay < stamp:
                 frame_buffer = []
@@ -63,6 +66,8 @@ def main():
             frames_from_last_sample = 0
     with open("training_samples.json", "w") as file:
         file.write(json.dumps(training_samples, indent=2))
+    print(len(training_samples))
+
 
 if __name__ == "__main__":
     main()
