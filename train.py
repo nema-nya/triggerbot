@@ -7,22 +7,35 @@ import os
 from trigger_bot_classifier_model import TriggerBotClassifierModel
 from trigger_bot_autoencoder_model import TriggerBotAutoencoderModel
 from config import *
+from utils import *
 
 assert torch.cuda.is_available()
 
 
 class TriggerBotDataset(torch.utils.data.Dataset):
 
-    def __init__(self, samples_file):
+    def __init__(self, samples_file, mode=None):
         with open(samples_file, "r") as file:
             self.samples = json.loads(file.read())
+
+        self.samples = [sample for sample in self.samples if get_frame_label(sample["frames"][-1]) is not None]
+
+        train_split = int(len(self.samples) * 0.8)
+        if mode == "train":
+            self.samples = self.samples[:train_split]
+        elif mode == "test":
+            self.samples = self.samples[train_split:]
+        else:
+            assert mode is None
+
         self.miss_count = 0
         self.hit_count = 0
         for sample in self.samples:
-            if sample["info"] is None:
-                self.miss_count += 1
-            else:
+            label = get_frame_label(sample["frames"][-1])
+            if label["is_hit"]:
                 self.hit_count += 1
+            else:
+                self.miss_count += 1
 
     def get_weights(self):
         return torch.tensor([self.miss_count, self.hit_count]) / (
@@ -31,7 +44,8 @@ class TriggerBotDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         frames = self.samples[index]["frames"]
-        info = self.samples[index]["info"]
+        label = get_frame_label(frames[-1])["is_hit"]
+
         frame_images = []
         for frame in frames:
             image = PIL.Image.open(os.path.join("outputs", frame))
@@ -39,8 +53,10 @@ class TriggerBotDataset(torch.utils.data.Dataset):
             image = image[:, :, :3].float() / 255
             frame_images.append(image)
         frame_images = torch.stack(frame_images)
-        frame_images = frame_images.permute((0, 3, 1, 2)).reshape((-1, capture_width, capture_height))
-        return frame_images, 0 if info is None else 1
+        frame_images = frame_images.permute((0, 3, 1, 2)).reshape(
+            (-1, capture_width, capture_height)
+        )
+        return frame_images, 1 if label else 0
 
     def __len__(self):
         return len(self.samples)

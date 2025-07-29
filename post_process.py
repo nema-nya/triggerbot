@@ -2,16 +2,20 @@ import datetime
 import os
 import json
 from config import *
-
+from utils import *
 
 def parse_stamp(text_stamp):
     return datetime.datetime.strptime(text_stamp, "%Y-%m-%d-%H-%M-%S-%f").timestamp()
 
 
+
+
+
 def main():
     frame_names = []
     info_names = []
-    delay = 1 / 45
+    delay = 4 / 3 / capture_rate
+    frame_time_shift = -1 / capture_rate / 2
 
     for file_name in os.listdir("outputs"):
         if file_name.startswith("frame"):
@@ -23,7 +27,7 @@ def main():
 
     for frame_name in frame_names:
         stamp = parse_stamp(frame_name[6:-4])
-        events.append((stamp, "frame", frame_name))
+        events.append((stamp + frame_time_shift, "frame", frame_name))
 
     for info_name in info_names:
         stamp = parse_stamp(info_name[5:-5])
@@ -41,9 +45,10 @@ def main():
                 and frames_from_last_sample >= sample_window
             ):
                 frames_from_last_sample = 0
+                sample_frames = frame_buffer[-sample_window:]
                 training_samples.append(
                     {
-                        "frames": [tf[0] for tf in frame_buffer[-sample_window:]],
+                        "frames": [tf[0] for tf in sample_frames],
                         "info": None,
                     }
                 )
@@ -57,9 +62,10 @@ def main():
             if frame_buffer and frame_buffer[-1][1] + delay < stamp:
                 frame_buffer = []
             if len(frame_buffer) >= sample_window:
+                sample_frames = frame_buffer[-sample_window:]
                 training_samples.append(
                     {
-                        "frames": [tf[0] for tf in frame_buffer[-sample_window:]],
+                        "frames": [tf[0] for tf in sample_frames],
                         "info": file_name,
                     }
                 )

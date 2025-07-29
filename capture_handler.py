@@ -16,7 +16,7 @@ class CaptureHandler:
             "-threads:v",
             "1",
             "-filter_complex",
-            f"ddagrab=0:output_fmt=87:draw_mouse=0:framerate=60:video_size={capture_width}x{capture_height}:offset_x={int(monitor_width / 2 - capture_width / 2)}:offset_y={int(monitor_height / 2 - capture_height / 2)},hwdownload,format=bgra",
+            f"ddagrab=0:output_fmt=87:draw_mouse=0:framerate={capture_rate}:video_size={capture_width}x{capture_height}:offset_x={int(monitor_width / 2 - capture_width / 2)}:offset_y={int(monitor_height / 2 - capture_height / 2)},hwdownload,format=bgra",
             "-f",
             "rawvideo",
             "-",

@@ -4,3 +4,4 @@ torch
 pillow
 pynput
 tqdm
+Flask
